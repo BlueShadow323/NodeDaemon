@@ -1,0 +1,12 @@
+{
+  "cwd": "/your-project",
+  "command": "npm run dev",
+  "priority": 999,
+  "maxRetries": 3,
+  "retryOnAbnormalExit": true,
+  "autoStart": false,
+  "log": {
+    "enabled": true,
+    "retentionDays": 7
+  }
+}
