@@ -19,6 +19,10 @@ function setCorsHeaders(res) {
 
 function verifySignature(body, signature, timestamp, secret) {
   if (!secret || !signature || !timestamp) return false;
+  if (typeof signature !== 'string' || signature.length !== 64 || !/^[0-9a-f]{64}$/i.test(signature)) return false;
+  const now = Date.now();
+  const ts = parseInt(timestamp, 10);
+  if (isNaN(ts) || Math.abs(now - ts) > 300000) return false;
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(timestamp + body);
   const expected = hmac.digest('hex');
@@ -77,17 +81,43 @@ function createServer(serviceManager, configLoader, secret) {
       return;
     }
 
-    const controlMatch = req.url.match(/^\/control\/([^/]+)$/);
-    const statusMatch = req.url.match(/^\/status\/([^/]+)$/);
+    const controlMatch = req.url.match(/^\/service\/control\/([^/]+)$/);
+    const statusMatch = req.url.match(/^\/service\/status\/([^/]+)$/);
+    const statusAllMatch = req.url === '/service/status';
     const serverStatusMatch = req.url === '/os/status';
+    const listServiceMatch = req.url === '/service/list';
 
-    if (!controlMatch && !statusMatch && !serverStatusMatch) {
+    if (!controlMatch && !statusMatch && !statusAllMatch && !serverStatusMatch && !listServiceMatch) {
       jsonResponse(res, 404, 'Not found');
       return;
     }
 
     const signature = req.headers['x-signature'];
     const timestamp = req.headers['x-timestamp'];
+
+    if (listServiceMatch) {
+      if (!verifySignature('', signature, timestamp, secret)) {
+        jsonResponse(res, 401, 'Invalid signature');
+        return;
+      }
+      const services = configLoader.listServices();
+      jsonResponse(res, 200, 'OK', services);
+      return;
+    }
+
+    if (statusAllMatch) {
+      if (!verifySignature('', signature, timestamp, secret)) {
+        jsonResponse(res, 401, 'Invalid signature');
+        return;
+      }
+      const names = configLoader.listServices();
+      const allStatus = {};
+      for (const name of names) {
+        allStatus[name] = serviceManager.getDetailedStatus(name);
+      }
+      jsonResponse(res, 200, 'OK', allStatus);
+      return;
+    }
 
     if (serverStatusMatch) {
       if (!verifySignature('', signature, timestamp, secret)) {
@@ -117,10 +147,28 @@ function createServer(serviceManager, configLoader, secret) {
 
     const serviceName = controlMatch[1];
     const bodyRaw = [];
+    let bodySize = 0;
+    const MAX_BODY = 1048576;
 
-    req.on('data', chunk => bodyRaw.push(chunk));
+    req.on('error', () => {
+      jsonResponse(res, 413, 'Request body too large');
+    });
+
+    req.on('data', chunk => {
+      bodySize += chunk.length;
+      if (bodySize > MAX_BODY) {
+        req.destroy();
+        return;
+      }
+      bodyRaw.push(chunk);
+    });
     req.on('end', async () => {
-      const rawBody = Buffer.concat(bodyRaw).toString();
+      try {
+        if (bodySize > MAX_BODY) {
+          jsonResponse(res, 413, 'Request body too large');
+          return;
+        }
+        const rawBody = Buffer.concat(bodyRaw).toString();
 
       if (!verifySignature(rawBody, signature, timestamp, secret)) {
         jsonResponse(res, 401, 'Invalid signature');
@@ -161,6 +209,9 @@ function createServer(serviceManager, configLoader, secret) {
       }
 
       jsonResponse(res, result.success ? 200 : 500, result.message);
+      } catch (err) {
+        jsonResponse(res, 500, err.message);
+      }
     });
   });
 }

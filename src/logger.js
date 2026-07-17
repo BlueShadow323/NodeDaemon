@@ -42,15 +42,7 @@ class ServiceLogger {
     if (content) {
       fs.appendFileSync(dst, content, 'utf-8');
     }
-    fs.unlinkSync(src);
-  }
-
-  _rotateIfNeeded() {
-    const today = this._getDateStr();
-    if (this.currentDate && this.currentDate !== today) {
-      this._mergeToDate(this.currentDate);
-    }
-    this.currentDate = today;
+    fs.writeFileSync(src, '', 'utf-8');
   }
 
   _cleanup() {
@@ -85,15 +77,16 @@ class ServiceLogger {
 
   write(data) {
     if (!this.enabled) return;
-    this._rotateIfNeeded();
+    const today = this._getDateStr();
+    if (this.currentDate && this.currentDate !== today) {
+      this._mergeToDate(this.currentDate);
+      this.currentDate = today;
+    }
     const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
     fs.appendFileSync(this._currentLogPath(), `[${ts}] ${data}`, 'utf-8');
   }
 
   close() {
-    if (!this.enabled) return;
-    this._rotateIfNeeded();
-    this._mergeToDate(this.currentDate);
   }
 }
 

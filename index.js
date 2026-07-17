@@ -12,7 +12,7 @@ if (!SECRET) {
   process.exit(1);
 }
 
-const serviceManager = new ServiceManager();
+const serviceManager = new ServiceManager(configLoader);
 
 async function startAutoServices() {
   const configs = configLoader.loadAllServiceConfigs();

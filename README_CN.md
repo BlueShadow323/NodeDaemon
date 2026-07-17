@@ -178,7 +178,7 @@ const signature = hmac.digest('hex');
 ### 接口一：控制服务启停
 
 ```
-POST /control/{serviceName}
+POST /service/control/{serviceName}
 ```
 
 **Headers：**
@@ -203,7 +203,7 @@ TIMESTAMP=$(date +%s000)
 BODY='{"type":"start"}'
 SIGNATURE=$(echo -n "${TIMESTAMP}${BODY}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
 
-curl -X POST http://localhost:10300/control/my-service \
+curl -X POST http://localhost:10300/service/control/my-service \
   -H "Content-Type: application/json" \
   -H "X-Timestamp: $TIMESTAMP" \
   -H "X-Signature: $SIGNATURE" \
@@ -215,8 +215,10 @@ curl -X POST http://localhost:10300/control/my-service \
 ### 接口二：查询服务状态
 
 ```
-POST /status/{serviceName}
+POST /service/status/{serviceName}
 ```
+
+查询单个服务状态。如需同时获取所有服务的状态，请调用 `POST /service/status`（不指定服务名称）。
 
 **Headers：**
 
@@ -227,7 +229,7 @@ POST /status/{serviceName}
 
 **请求体：** 无
 
-**响应 `data` 字段说明：**
+**响应 `data` 字段说明（单个服务）：**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -236,7 +238,7 @@ POST /status/{serviceName}
 | `duration` | number 或 null | 服务已运行时长（秒），未运行时为 `null` |
 | `abnormalExitCount` | number | 服务异常退出累计次数（自动重启计数） |
 
-**响应示例：**
+**响应示例（单个服务）：**
 
 ```json
 {
@@ -258,14 +260,99 @@ SECRET="your-secret-key-here"
 TIMESTAMP=$(date +%s000)
 SIGNATURE=$(echo -n "${TIMESTAMP}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
 
-curl -X POST http://localhost:10300/status/my-service \
+curl -X POST http://localhost:10300/service/status/my-service \
+  -H "X-Timestamp: $TIMESTAMP" \
+  -H "X-Signature: $SIGNATURE"
+```
+
+**查询所有服务状态：**
+
+```
+POST /service/status
+```
+
+返回所有已配置服务的状态，以服务名称为 key 的对象形式。
+
+**响应 `data` 字段说明（所有服务）：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `{serviceName}` | object | 每个服务的状态对象（字段同单个服务状态） |
+
+**响应示例（所有服务）：**
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "lyblog-server": {
+      "running": true,
+      "operation": null,
+      "duration": 3600,
+      "abnormalExitCount": 0
+    },
+    "usersystem-server": {
+      "running": false,
+      "operation": null,
+      "duration": null,
+      "abnormalExitCount": 1
+    }
+  }
+}
+```
+
+---
+
+### 接口三：列出所有服务
+
+```
+POST /service/list
+```
+
+**Headers：**
+
+| 请求头 | 说明 |
+|--------|------|
+| `X-Timestamp` | 当前 Unix 时间戳（毫秒） |
+| `X-Signature` | HMAC-SHA256(`X-Timestamp` + `""`, secret)（请求体为空字符串） |
+
+**请求体：** 无
+
+**响应 `data` 字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| (数组) | string[] | 所有已配置的服务 ID 列表（文件名不含 `.json` 后缀） |
+
+**响应示例：**
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": [
+    "lyblog-server",
+    "usersystem-server"
+  ]
+}
+```
+
+**cURL 调用示例：**
+
+```bash
+SECRET="your-secret-key-here"
+TIMESTAMP=$(date +%s000)
+SIGNATURE=$(echo -n "${TIMESTAMP}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
+
+curl -X POST http://localhost:10300/service/list \
   -H "X-Timestamp: $TIMESTAMP" \
   -H "X-Signature: $SIGNATURE"
 ```
 
 ---
 
-### 接口三：查询操作系统状态
+### 接口四：查询操作系统状态
 
 ```
 POST /os/status
@@ -334,11 +421,13 @@ curl -X POST http://localhost:10300/os/status \
 
 | 操作 | HTTP 方法 | 路径 | 请求体 |
 |------|-----------|------|--------|
-| 启动服务 | POST | `/control/{serviceName}` | `{"type":"start"}` |
-| 停止服务 | POST | `/control/{serviceName}` | `{"type":"stop"}` |
-| 重启服务 | POST | `/control/{serviceName}` | `{"type":"restart"}` |
-| 强制停止服务 | POST | `/control/{serviceName}` | `{"type":"force-stop"}` |
-| 查询服务状态 | POST | `/status/{serviceName}` | 无 |
+| 启动服务 | POST | `/service/control/{serviceName}` | `{"type":"start"}` |
+| 停止服务 | POST | `/service/control/{serviceName}` | `{"type":"stop"}` |
+| 重启服务 | POST | `/service/control/{serviceName}` | `{"type":"restart"}` |
+| 强制停止服务 | POST | `/service/control/{serviceName}` | `{"type":"force-stop"}` |
+| 查询服务状态 | POST | `/service/status/{serviceName}` | 无 |
+| 查询所有服务状态 | POST | `/service/status` | 无 |
+| 列出所有服务 | POST | `/service/list` | 无 |
 | 查询系统状态 | POST | `/os/status` | 无 |
 
 ---

@@ -35,16 +35,18 @@ function killProcessTree(pid, force) {
 }
 
 class ServiceManager {
-  constructor() {
+  constructor(configLoader) {
     this.processes = {};
     this.loggers = {};
     this.retryCounts = {};
     this.startTimes = {};
     this.pendingOps = {};
     this.stopping = {};
+    this.retryTimers = {};
+    this.configLoader = configLoader;
   }
 
-  async start(name, config) {
+  async start(name, config, isRetry) {
     if (this.processes[name]) {
       return { success: false, message: `Service ${name} is already running` };
     }
@@ -72,7 +74,9 @@ class ServiceManager {
         const child = spawn(cmd, [], spawnOptions);
 
         this.processes[name] = child;
-        this.retryCounts[name] = 0;
+        if (!isRetry) {
+          this.retryCounts[name] = 0;
+        }
         this.startTimes[name] = Date.now();
         delete this.pendingOps[name];
 
@@ -117,7 +121,17 @@ class ServiceManager {
           if (abnormal && config.retryOnAbnormalExit) {
             this.retryCounts[name] = (this.retryCounts[name] || 0) + 1;
             if (this.retryCounts[name] <= config.maxRetries) {
-              setTimeout(() => this.start(name, config), 1000);
+              this.retryTimers[name] = setTimeout(() => {
+                delete this.retryTimers[name];
+                if (this.stopping[name]) {
+                  delete this.stopping[name];
+                  return;
+                }
+                const freshConfig = this.configLoader.loadServiceConfig(name);
+                if (freshConfig) {
+                  this.start(name, freshConfig, true);
+                }
+              }, 1000);
             }
           }
         });
@@ -132,13 +146,15 @@ class ServiceManager {
   }
 
   stop(name) {
+    this.stopping[name] = true;
+    clearTimeout(this.retryTimers[name]);
+    delete this.retryTimers[name];
     const child = this.processes[name];
     if (!child) {
       return { success: false, message: `Service ${name} is not running` };
     }
 
     this.pendingOps[name] = 'stopping';
-    this.stopping[name] = true;
 
     const l = this.loggers[name];
     if (l) {
@@ -158,13 +174,15 @@ class ServiceManager {
   }
 
   forceStop(name) {
+    this.stopping[name] = true;
+    clearTimeout(this.retryTimers[name]);
+    delete this.retryTimers[name];
     const child = this.processes[name];
     if (!child) {
       return { success: false, message: `Service ${name} is not running` };
     }
 
     this.pendingOps[name] = 'force-stopping';
-    this.stopping[name] = true;
 
     const l = this.loggers[name];
     if (l) {
@@ -181,9 +199,11 @@ class ServiceManager {
     return { success: true, message: `Service ${name} force stopped` };
   }
 
-  restart(name, config) {
+  async restart(name, config) {
     this.pendingOps[name] = 'restarting';
     this.stopping[name] = true;
+    clearTimeout(this.retryTimers[name]);
+    delete this.retryTimers[name];
     if (this.processes[name]) {
       const l = this.loggers[name];
       if (l) {
@@ -196,12 +216,16 @@ class ServiceManager {
       delete this.processes[name];
       delete this.startTimes[name];
     }
-    return this.start(name, config);
+    const result = await this.start(name, config);
+    delete this.stopping[name];
+    return result;
   }
 
   stopAll() {
     const names = Object.keys(this.processes);
     for (const name of names) {
+      clearTimeout(this.retryTimers[name]);
+      delete this.retryTimers[name];
       this.stop(name);
     }
   }

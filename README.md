@@ -178,7 +178,7 @@ const signature = hmac.digest('hex');
 ### Endpoint 1: Control Service (Start / Stop / Restart)
 
 ```
-POST /control/{serviceName}
+POST /service/control/{serviceName}
 ```
 
 **Headers:**
@@ -203,7 +203,7 @@ TIMESTAMP=$(date +%s000)
 BODY='{"type":"start"}'
 SIGNATURE=$(echo -n "${TIMESTAMP}${BODY}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
 
-curl -X POST http://localhost:10300/control/my-service \
+curl -X POST http://localhost:10300/service/control/my-service \
   -H "Content-Type: application/json" \
   -H "X-Timestamp: $TIMESTAMP" \
   -H "X-Signature: $SIGNATURE" \
@@ -215,8 +215,10 @@ curl -X POST http://localhost:10300/control/my-service \
 ### Endpoint 2: Query Service Status
 
 ```
-POST /status/{serviceName}
+POST /service/status/{serviceName}
 ```
+
+Query a single service status. To get status of all services at once, call `POST /service/status` without a service name.
 
 **Headers:**
 
@@ -227,7 +229,7 @@ POST /status/{serviceName}
 
 **Request Body:** None
 
-**Response `data` Fields:**
+**Response `data` Fields (single service):**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -236,7 +238,7 @@ POST /status/{serviceName}
 | `duration` | number or null | Running duration in seconds, or `null` if not running |
 | `abnormalExitCount` | number | Number of abnormal exits (auto-restart count) |
 
-**Response Example:**
+**Response Example (single service):**
 
 ```json
 {
@@ -258,14 +260,99 @@ SECRET="your-secret-key-here"
 TIMESTAMP=$(date +%s000)
 SIGNATURE=$(echo -n "${TIMESTAMP}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
 
-curl -X POST http://localhost:10300/status/my-service \
+curl -X POST http://localhost:10300/service/status/my-service \
+  -H "X-Timestamp: $TIMESTAMP" \
+  -H "X-Signature: $SIGNATURE"
+```
+
+**All Services Status:**
+
+```
+POST /service/status
+```
+
+Returns all configured services' status as an object keyed by service name.
+
+**Response `data` Fields (all services):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `{serviceName}` | object | Status object for each service (same fields as single status) |
+
+**Response Example (all services):**
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "lyblog-server": {
+      "running": true,
+      "operation": null,
+      "duration": 3600,
+      "abnormalExitCount": 0
+    },
+    "usersystem-server": {
+      "running": false,
+      "operation": null,
+      "duration": null,
+      "abnormalExitCount": 1
+    }
+  }
+}
+```
+
+---
+
+### Endpoint 3: List All Services
+
+```
+POST /service/list
+```
+
+**Headers:**
+
+| Header | Value |
+|--------|-------|
+| `X-Timestamp` | Current Unix timestamp in milliseconds |
+| `X-Signature` | HMAC-SHA256(`X-Timestamp` + `""`, secret) (empty request body) |
+
+**Request Body:** None
+
+**Response `data` Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| (array) | string[] | List of all configured service IDs (filenames without `.json` extension) |
+
+**Response Example:**
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": [
+    "lyblog-server",
+    "usersystem-server"
+  ]
+}
+```
+
+**cURL Example:**
+
+```bash
+SECRET="your-secret-key-here"
+TIMESTAMP=$(date +%s000)
+SIGNATURE=$(echo -n "${TIMESTAMP}" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
+
+curl -X POST http://localhost:10300/service/list \
   -H "X-Timestamp: $TIMESTAMP" \
   -H "X-Signature: $SIGNATURE"
 ```
 
 ---
 
-### Endpoint 3: Query Daemon Server Status
+### Endpoint 4: Query Daemon Server Status
 
 ```
 POST /os/status
@@ -334,11 +421,13 @@ curl -X POST http://localhost:10300/os/status \
 
 | Operation | HTTP Method | Path | Request Body |
 |-----------|-------------|------|--------------|
-| Start service | POST | `/control/{serviceName}` | `{"type":"start"}` |
-| Stop service | POST | `/control/{serviceName}` | `{"type":"stop"}` |
-| Restart service | POST | `/control/{serviceName}` | `{"type":"restart"}` |
-| Force stop service | POST | `/control/{serviceName}` | `{"type":"force-stop"}` |
-| Query service status | POST | `/status/{serviceName}` | None |
+| Start service | POST | `/service/control/{serviceName}` | `{"type":"start"}` |
+| Stop service | POST | `/service/control/{serviceName}` | `{"type":"stop"}` |
+| Restart service | POST | `/service/control/{serviceName}` | `{"type":"restart"}` |
+| Force stop service | POST | `/service/control/{serviceName}` | `{"type":"force-stop"}` |
+| Query service status | POST | `/service/status/{serviceName}` | None |
+| Query all services status | POST | `/service/status` | None |
+| List all services | POST | `/service/list` | None |
 | Query server status | POST | `/os/status` | None |
 
 ---
