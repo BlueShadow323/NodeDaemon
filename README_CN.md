@@ -1,6 +1,13 @@
-# Node Daemon — 后台服务进程管理器
+# Node Daemon
 
 [English](./README.md) | 简体中文
+
+<p>
+  <img src="https://img.shields.io/badge/node-%3E%3D12.0.0-brightgreen" alt="Node 版本" />
+  <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="支持平台" />
+  <img src="https://img.shields.io/badge/许可证-MIT-green" alt="许可证" />
+  <img src="https://img.shields.io/badge/依赖-dotenv-yellow" alt="依赖" />
+</p>
 
 一个轻量级的跨平台守护进程，用于管理后台服务的启动、停止、重启及自动重启。
 
@@ -63,7 +70,7 @@ npm start
 
 ```json
 {
-  "cwd": "F:\\Project\\UserSystem\\Server",
+  "cwd": "/opt/myapp/server",
   "command": "npm run dev",
   "priority": 500,
   "maxRetries": 3,
@@ -286,13 +293,13 @@ POST /service/status
   "code": 200,
   "message": "OK",
   "data": {
-    "lyblog-server": {
+    "my-app": {
       "running": true,
       "operation": null,
       "duration": 3600,
       "abnormalExitCount": 0
     },
-    "usersystem-server": {
+    "my-other-app": {
       "running": false,
       "operation": null,
       "duration": null,
@@ -332,8 +339,8 @@ POST /service/list
   "code": 200,
   "message": "OK",
   "data": [
-    "lyblog-server",
-    "usersystem-server"
+    "my-app",
+    "my-other-app"
   ]
 }
 ```

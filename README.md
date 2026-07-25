@@ -1,6 +1,13 @@
-# Node Daemon — Background Service Process Manager
+# Node Daemon
 
 English | [简体中文](./README_CN.md)
+
+<p>
+  <img src="https://img.shields.io/badge/node-%3E%3D12.0.0-brightgreen" alt="Node Version" />
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue" alt="Platform" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+  <img src="https://img.shields.io/badge/dependencies-dotenv-yellow" alt="Dependencies" />
+</p>
 
 A lightweight cross-platform daemon for managing background services — start, stop, restart, and auto-restart.
 
@@ -63,7 +70,7 @@ Define a managed service by creating `{serviceName}.json` in the `services/` dir
 
 ```json
 {
-  "cwd": "F:\\Project\\UserSystem\\Server",
+  "cwd": "/opt/myapp/server",
   "command": "npm run dev",
   "priority": 500,
   "maxRetries": 3,
@@ -286,13 +293,13 @@ Returns all configured services' status as an object keyed by service name.
   "code": 200,
   "message": "OK",
   "data": {
-    "lyblog-server": {
+    "my-app": {
       "running": true,
       "operation": null,
       "duration": 3600,
       "abnormalExitCount": 0
     },
-    "usersystem-server": {
+    "my-other-app": {
       "running": false,
       "operation": null,
       "duration": null,
@@ -332,8 +339,8 @@ POST /service/list
   "code": 200,
   "message": "OK",
   "data": [
-    "lyblog-server",
-    "usersystem-server"
+    "my-app",
+    "my-other-app"
   ]
 }
 ```
