@@ -29,15 +29,25 @@ Create a `.env` file in the project root (or set environment variables directly 
 |----------|-------------|----------|---------|
 | `DAEMON_PORT` | HTTP server listening port | No | `10300` |
 | `DAEMON_SECRET_KEY` | HMAC signing key for API authentication | **Yes** | — |
+| `WEBUI_ENABLED` | Enable Web UI management interface | No | `false` |
+| `WEBUI_PORT` | Web UI listening port | No | `10400` |
+| `WEBUI_USERNAME` | Web UI login username | No | `admin` |
+| `WEBUI_PASSWORD` | Web UI login password | No | `admin` |
 
 Example `.env`:
 
 ```
 DAEMON_PORT=10300
 DAEMON_SECRET_KEY=your-secret-key-here
+WEBUI_ENABLED=true
+WEBUI_PORT=10400
+WEBUI_USERNAME=admin
+WEBUI_PASSWORD=your-strong-password-here
 ```
 
 A template is available at `.env.example`.
+
+> **Security note:** If you expose the Web UI to the public internet, make sure to set a strong password (WEBUI_PASSWORD) and choose a complex DAEMON_SECRET_KEY.
 
 ### Start the Daemon
 
@@ -59,7 +69,7 @@ Define a managed service by creating `{serviceName}.json` in the `services/` dir
 |-------|------|---------|-------------|
 | `command` | string | `""` | Command to execute, e.g. `"npm run dev"`, `"node app.js"` |
 | `cwd` | string | `"."` | Working directory for the command |
-| `priority` | number | `0` | Startup priority (0-999). Higher values start first. Multiple services may share the same value |
+| `priority` | number | `999` | Startup priority (0-999). Higher values start first. Multiple services may share the same value |
 | `autoStart` | boolean | `false` | Whether to auto-start this service when the daemon boots |
 | `maxRetries` | number | `3` | Maximum auto-restart attempts after abnormal exit |
 | `retryOnAbnormalExit` | boolean | `true` | Whether to auto-restart on abnormal exit. Set to `false` to disable |
@@ -452,3 +462,57 @@ curl -X POST http://localhost:10300/os/status \
 ## Shutdown
 
 Press `Ctrl+C` or send a `SIGTERM` signal to the daemon. It will gracefully stop all running services before exiting.
+
+---
+
+## Web UI Management Interface
+
+The Web UI provides a browser-based graphical interface for viewing and managing all services.
+
+### Enabling Web UI
+
+Set `WEBUI_ENABLED=true` in the `.env` file, then start the daemon. Access the interface at `http://localhost:{WEBUI_PORT}/webui/`.
+
+### Login
+
+The login page is shown on first access. Use the credentials configured with `WEBUI_USERNAME` and `WEBUI_PASSWORD` in `.env` (default: `admin`/`admin`).
+
+### Features
+
+- Real-time status of all services (running/stopped/pending)
+- Start, stop, restart, and force-stop individual services
+- View service uptime and abnormal exit count
+- View server system status (CPU usage, memory usage, uptime)
+- **Create/Edit/Delete services** — Manage service configurations directly from the UI without editing JSON files (manual file editing is still supported)
+- **Multi-language** — Switch between English, Simplified Chinese, and Traditional Chinese via the navigation bar
+- **Hot-reload** — Modify HTML/CSS/JS files and refresh the browser to see changes — no daemon restart required
+
+### Security Recommendations
+
+**Web UI** is not recommended for direct exposure to the public internet. It uses username/password authentication and is best suited for internal/private networks.
+
+If you must expose the Web UI externally, at minimum:
+
+- Use a strong `WEBUI_PASSWORD` (16+ characters with mixed case, digits, and symbols)
+- Change the default `WEBUI_USERNAME` from `admin`
+- Deploy behind a reverse proxy (e.g., Nginx) with HTTPS and IP allowlisting
+- Only allow the Web UI port (`WEBUI_PORT`); **do not** expose the internal API port (`DAEMON_PORT`)
+
+**Internal API** (endpoints on `DAEMON_PORT`) uses HMAC-SHA256 signature authentication and is designed to be safely exposed to the public internet for external applications (e.g., backend management apps). When using the internal API:
+
+- Set a strong `DAEMON_SECRET_KEY` (at least 32 random characters)
+- The signing key is never exposed to the browser through the Web UI
+
+### Security Measures
+
+The Web UI includes the following protections:
+
+| Security Measure | Description |
+|-----------------|-------------|
+| Session auth | Server-side sessions with httpOnly cookies, inaccessible to JavaScript |
+| CSRF protection | Double Submit Cookie pattern with a unique CSRF token per session |
+| Login rate limiting | IP is temporarily blocked for 60 seconds after 5 consecutive failed attempts |
+| Security headers | X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy |
+| Session expiry | Login sessions expire after 24 hours |
+| Independent auth | Web UI uses separate username/password auth, independent of the daemon HMAC key |
+| Internal API isolation | The frontend never accesses the daemon API directly; all operations are proxied through the Web UI backend, keeping DAEMON_SECRET_KEY hidden from the browser |

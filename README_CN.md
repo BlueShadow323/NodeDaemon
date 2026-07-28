@@ -29,15 +29,25 @@ npm install
 |--------|------|----------|--------|
 | `DAEMON_PORT` | HTTP 服务监听端口 | 否 | `10300` |
 | `DAEMON_SECRET_KEY` | HMAC 签名密钥，用于接口鉴权 | **是** | 无 |
+| `WEBUI_ENABLED` | 是否启用 Web UI 管理界面 | 否 | `false` |
+| `WEBUI_PORT` | Web UI 监听端口 | 否 | `10400` |
+| `WEBUI_USERNAME` | Web UI 登录用户名 | 否 | `admin` |
+| `WEBUI_PASSWORD` | Web UI 登录密码 | 否 | `admin` |
 
 示例 `.env`：
 
 ```
 DAEMON_PORT=10300
 DAEMON_SECRET_KEY=your-secret-key-here
+WEBUI_ENABLED=true
+WEBUI_PORT=10400
+WEBUI_USERNAME=admin
+WEBUI_PASSWORD=your-strong-password-here
 ```
 
 模板文件见 `.env.example`。
+
+> **安全建议：** 如果要将 Web UI 开放到公网，请务必设置强密码（WEBUI_PASSWORD），并确保 DAEMON_SECRET_KEY 足够复杂。
 
 ### 启动守护进程
 
@@ -59,7 +69,7 @@ npm start
 |------|------|--------|------|
 | `command` | string | `""` | 要执行的命令，例如 `"npm run dev"`、`"node app.js"` |
 | `cwd` | string | `"."` | 命令的工作目录路径 |
-| `priority` | number | `0` | 启动优先级（0-999），数值越高越先启动。多个服务可设为相同值 |
+| `priority` | number | `999` | 启动优先级（0-999），数值越高越先启动。多个服务可设为相同值 |
 | `autoStart` | boolean | `false` | 是否在 daemon 启动时自动启动该服务 |
 | `maxRetries` | number | `3` | 进程异常退出时的最大自动重启次数 |
 | `retryOnAbnormalExit` | boolean | `true` | 是否在非正常退出时自动重启。设为 `false` 则进程退出后不再重启 |
@@ -452,3 +462,57 @@ curl -X POST http://localhost:10300/os/status \
 ## 关机
 
 按 `Ctrl+C` 或向进程发送 `SIGTERM` 信号时，daemon 会依次停止所有正在运行的管理服务，然后退出。
+
+---
+
+## Web UI 管理界面
+
+Web UI 提供了一个基于浏览器的图形化管理界面，用于查看和管理所有服务的运行状态。
+
+### 启用 Web UI
+
+将 `.env` 文件中的 `WEBUI_ENABLED` 设置为 `true`，然后启动 daemon。启动后，通过浏览器访问 `http://localhost:{WEBUI_PORT}/webui/` 即可打开管理界面。
+
+### 登录
+
+首次打开管理界面时，会显示登录页面。使用 `.env` 中配置的 `WEBUI_USERNAME` 和 `WEBUI_PASSWORD` 登录（默认为 `admin`/`admin`）。
+
+### 功能说明
+
+- 实时查看所有服务的运行状态（运行中/已停止/操作中）
+- 启动、停止、重启、强制停止单个服务
+- 查看服务运行时长和异常退出次数
+- 查看服务器系统状态（CPU 使用率、内存使用率、系统运行时间）
+- **新增/编辑/删除服务** — 通过 Web UI 直接创建、修改或删除服务配置，无需手动编辑 JSON 文件（也同时保留手动创建文件的方式）
+- **多语言支持** — 支持 English、简体中文、繁体中文，点击导航栏按钮即可切换
+- **热重载** — 修改 HTML/CSS/JS 文件后刷新浏览器即可生效，无需重启守护进程
+
+### 安全建议
+
+**Web UI 管理界面** 不建议直接开放到公网。Web UI 基于用户名密码认证，仅适合在内网环境中使用。
+
+如果需要从外网访问 Web UI，请至少采取以下安全措施：
+
+- 设置强密码：`WEBUI_PASSWORD` 至少 16 位，包含大小写字母、数字和特殊字符
+- 修改默认用户名：`WEBUI_USERNAME` 不要使用默认的 `admin`
+- 配合反向代理（如 Nginx）配置 HTTPS 和 IP 白名单
+- 仅放行 Web UI 端口（`WEBUI_PORT`），**不要**将内部 API 端口（`DAEMON_PORT`）暴露到公网
+
+**内部 API**（`DAEMON_PORT` 上的接口）基于 HMAC-SHA256 签名鉴权，设计上可以安全地开放到公网，供后台管理 APP 等外部调用。使用内部 API 时请务必注意：
+
+- 设置足够复杂的 `DAEMON_SECRET_KEY`（建议至少 32 位随机字符串）
+- 内部 API 的签名密钥不会通过 Web UI 暴露给浏览器
+
+### 安全机制
+
+Web UI 具备以下安全措施：
+
+| 安全措施 | 说明 |
+|---------|------|
+| 会话认证 | 基于服务端 session 的登录认证，session ID 通过 httpOnly Cookie 传输，不可被 JavaScript 读取 |
+| CSRF 防护 | 双重提交 Cookie 模式（Double Submit Cookie），每个会话绑定独立的 CSRF Token |
+| 登录限制 | 单个 IP 连续 5 次登录失败后临时封锁 60 秒 |
+| 安全响应头 | 设置 X-Content-Type-Options、X-Frame-Options、X-XSS-Protection、Referrer-Policy 等安全头 |
+| 会话过期 | 登录 session 有效期 24 小时，过期后需重新登录 |
+| 独立认证体系 | Web UI 使用独立的用户名/密码认证，不与 daemon 内部 HMAC 密钥共享 |
+| 内部 API 隔离 | 前端不直接访问 daemon 内部 API，所有操作通过 Web UI 后端代理转发，DAEMON_SECRET_KEY 不会暴露给浏览器 |

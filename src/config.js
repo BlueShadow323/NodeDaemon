@@ -52,4 +52,36 @@ function loadAllServiceConfigs() {
   return result;
 }
 
-module.exports = { loadServiceConfig, listServices, loadAllServiceConfigs };
+function makeServicesDir() {
+  if (!fs.existsSync(SERVICES_DIR)) {
+    fs.mkdirSync(SERVICES_DIR, { recursive: true });
+  }
+}
+
+function saveServiceConfig(serviceName, config) {
+  const filePath = path.join(SERVICES_DIR, `${serviceName}.json`);
+  const payload = {
+    cwd: config.cwd || '.',
+    command: config.command || '',
+    priority: typeof config.priority === 'number' ? Math.max(0, Math.min(999, config.priority)) : 999,
+    maxRetries: typeof config.maxRetries === 'number' ? config.maxRetries : 3,
+    retryOnAbnormalExit: config.retryOnAbnormalExit !== false,
+    autoStart: config.autoStart === true,
+    log: {
+      enabled: config.log && config.log.enabled === true,
+      retentionDays: config.log && typeof config.log.retentionDays === 'number' ? config.log.retentionDays : 7
+    }
+  };
+  makeServicesDir();
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+  return true;
+}
+
+function deleteServiceConfig(serviceName) {
+  const filePath = path.join(SERVICES_DIR, `${serviceName}.json`);
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+  return true;
+}
+
+module.exports = { loadServiceConfig, listServices, loadAllServiceConfigs, saveServiceConfig, deleteServiceConfig };
