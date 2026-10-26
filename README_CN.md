@@ -2,6 +2,10 @@
 
 [English](./README.md) | 简体中文
 
+> [!WARNING]
+> **本项目已不再维护**，建议迁移到 [RustDaemon](https://github.com/BlueShadow323/RustDaemon)。
+> 这个版本连我自己都不再使用了……
+
 <p>
   <img src="https://img.shields.io/badge/node-%3E%3D12.0.0-brightgreen" alt="Node 版本" />
   <img src="https://img.shields.io/badge/平台-Windows%20%7C%20Linux-blue" alt="支持平台" />
